@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+    <http:listener-config name="capptus-process-api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="capptus-process-api-config" api="resource::3583f684-5008-42d9-a5db-bb2debac9772:assignment-process-api:1.0.0:raml:zip:capptus-process-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <db:config name="Database_Config" doc:name="Database Config" doc:id="ab37fbe0-2d77-478b-8977-4211b08cd001" >
+		<db:generic-connection url="jdbc:postgresql://ep-blue-king-a6ctqr40.us-west-2.aws.neon.tech/CustomerDB?sslmode=require" user="CustomerDB_owner" password="fTwDlRF7QG3E" driverClassName="org.postgresql.Driver"/>
+	</db:config>
+	<http:request-config name="HTTP_Request_Customers" doc:name="HTTP Request configuration" doc:id="043dcbae-b31c-4fd6-a304-d370809f8741" >
+		<http:request-connection host="assignment-customers-sapi.us-e2.cloudhub.io" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_Products" doc:name="HTTP Request configuration" doc:id="dce2386a-9be0-4694-9861-5f48b8bdce32" >
+		<http:request-connection host="assignment-products-sapi.us-e2.cloudhub.io" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_Order" doc:name="HTTP Request configuration" doc:id="3c60266c-b87e-4ed9-96b0-b61f4916130e" >
+		<http:request-connection host="assignment-orders-sapi.us-e2.cloudhub.io" />
+	</http:request-config>
+	<flow name="capptus-process-api-main">
+        <http:listener config-ref="capptus-process-api-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="capptus-process-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+	<!-- [STUDIO:"capptus-process-orderDetails"]<flow name="capptus-process-orderDetails" doc:id="3d9fb835-e737-4361-82e2-47f4a826aad0" >
+		<http:request method="GET" doc:name="Request" doc:id="7536687f-249b-4738-9917-d62c104ff92e" path="/api/products" config-ref="HTTP_Request_Products" />
+		<set-variable value="#[{&#10;	productId: payload.id,&#10;	name: payload.name&#10;}&#93;" doc:name="Products" doc:id="7712c448-e198-42c7-b19e-0d4a359f64fe" variableName="productDetails" />
+		<http:request method="GET" doc:name="Request" doc:id="be96c63a-c971-4ff5-aed5-97fe50176613" config-ref="HTTP_Request_Customers" path="/api/customers" />
+		<set-variable value="#[{&#10;	customerId: payload.id&#10;}&#93;" doc:name="Customer Id" doc:id="a6b8246d-f705-474b-a908-51300fff5b01" variableName="customerId" />
+		<ee:transform doc:name="Transform Message" doc:id="bf16b2e1-da9f-4733-a00d-20a6cfed7141">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+{
+	productId: vars.productDetails.productId,
+	name: vars.productDetails.name,
+	customerId: vars.customerId.customerId
+}&#93;&#93;></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference" doc:id="9a28d4ab-b1d9-43e3-8441-df3dfa049822" name="capptus-process-orderDetails" />
+	</flow> [STUDIO] -->
+	<flow name="post:\order:application\json:capptus-process-api-config">
+		<http:request method="POST" doc:name="Request" doc:id="7ee2042d-f4cf-42b5-af9a-df6cb2aad731" path="/api/order" config-ref="HTTP_Request_Order"/>
+		<ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+</mule>
